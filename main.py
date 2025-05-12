@@ -43,6 +43,7 @@ async def session_cleanup_loop():
 
 @bot.tree.command(name="chat", description="Geminiと会話します")
 async def chat_command(interaction: discord.Interaction, *, message: str):
+    await interaction.response.defer(thinking=True)
     channel_id = str(interaction.channel.id)
 
     try:
@@ -57,10 +58,10 @@ async def chat_command(interaction: discord.Interaction, *, message: str):
         reply = response.text.strip()
 
         chat_sessions[channel_id]['last_active'] = time.time()
-        await interaction.response.send_message(reply)
+        await interaction.followup.send(reply)
     except Exception as e:
         print(f"Error: {e}")
-        await interaction.response.send_message("An error occurred while processing your request.")
+        await interaction.followup.send("エラーが発生しました。")
 
 @bot.event
 async def on_ready():
