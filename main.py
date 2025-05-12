@@ -66,7 +66,8 @@ async def chat_command(interaction: discord.Interaction, *, message: str):
 async def on_ready():
     await bot.tree.sync()
     print(f"✅ Logged in as {bot.user}")
-    bot.loop.create_task(session_cleanup_loop())
+    if not hasattr(bot, 'cleanup_task') or bot.cleanup_task.done():
+        bot.cleanup_task = bot.loop.create_task(session_cleanup_loop())
 
 @bot.tree.command(name="clear", description="セッションをクリアします")
 async def clear_command(interaction: discord.Interaction):
