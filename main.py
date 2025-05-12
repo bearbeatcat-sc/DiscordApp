@@ -1,6 +1,8 @@
 import os
-import discord
+from discord.ext import commands
+from discord import app_commands
 from dotenv import load_dotenv
+import discord
 import google.generativeai as genai
 import time
 import asyncio
@@ -18,56 +20,62 @@ chat = model.start_chat()
 # Discord Bot設定
 intents = discord.Intents.default()
 intents.message_content = True
-discord_client = discord.Client(intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 chat_sessions = {}
 
 def cleanup_inactive_sessions(timeout_seconds=3600):
     now = time.time()
-    inactive_users = [
-        user_id for user_id, sessions in chat_sessions.items()
-        if now - sessions['last_active'] > timeout_seconds
+    inactive_channels = [
+        channel_id for channel_id, session in chat_sessions.items()
+        if now - session["last_active"] > timeout_seconds
     ]
+    for channel_id in inactive_channels:
+        del chat_sessions[channel_id]
+        print(f"🧹 Removed inactive session for channel: {channel_id}")
 
-    for user_id in inactive_users:
-        del chat_sessions[user_id]
-
+# バックグラウンドタスクで定期的にセッションをクリーンアップ
 async def session_cleanup_loop():
-    await discord_client.wait_until_ready()
-    while not discord_client.is_closed():
-        cleanup_inactive_sessions(timeout_seconds=3600)  # 1時間以上非アクティブなセッションを削除
-        await asyncio.sleep(600)  # 10分ごとにチェック
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        cleanup_inactive_sessions(timeout_seconds=3600)
+        await asyncio.sleep(600)  # 10分ごとに実行
 
-@discord_client.event
-async def on_ready():
-    print(f'Logged in as {discord_client.user}')
-    discord_client.loop.create_task(session_cleanup_loop())
+@bot.tree.command(name="chat", description="Geminiと会話します")
+async def chat_command(interaction: discord.Interaction, *, message: str):
+    channel_id = str(interaction.channel.id)
 
-@discord_client.event
-async def on_message(message):
-    if message.author.bot:
-        return
-    
-    user_id = str(message.author.id)
-    user_message = message.content.strip()
-    
-    if not user_message:
-        return
-    
     try:
-        if user_id not in chat_sessions:
-            chat_sessions[user_id] = {
+        if channel_id not in chat_sessions:
+            chat_sessions[channel_id] = {
                 "chat": model.start_chat(),
                 "last_active": time.time()
             }
         
-        response = chat_sessions[user_id]["chat"].send_message(user_message)
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, chat_sessions[channel_id]["chat"].send_message, message)
         reply = response.text.strip()
-        chat_sessions[user_id]['last_active'] = time.time()
-        await message.channel.send(reply)
-        
+
+        chat_sessions[channel_id]['last_active'] = time.time()
+        await interaction.response.send_message(reply)
     except Exception as e:
         print(f"Error: {e}")
-        await message.channel.send("An error occurred while processing your request.")
-        
-discord_client.run(DISCORD_TOKEN)
+        await interaction.response.send_message("An error occurred while processing your request.")
+
+@bot.event
+async def on_ready():
+    await bot.tree.sync()
+    print(f"✅ Logged in as {bot.user}")
+    if not hasattr(bot, 'cleanup_task') or bot.cleanup_task.done():
+        bot.cleanup_task = bot.loop.create_task(session_cleanup_loop())
+
+@bot.tree.command(name="clear", description="セッションをクリアします")
+async def clear_command(interaction: discord.Interaction):
+    channel_id = str(interaction.channel.id)
+    if channel_id in chat_sessions:
+        del chat_sessions[channel_id]
+        await interaction.response.send_message("セッションをクリアしました。")
+    else:
+        await interaction.response.send_message("セッションは存在しません。")
+
+bot.run(DISCORD_TOKEN)
