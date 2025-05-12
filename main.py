@@ -52,7 +52,8 @@ async def chat_command(interaction: discord.Interaction, *, message: str):
                 "last_active": time.time()
             }
         
-        response = chat_sessions[channel_id]["chat"].send_message(message)
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, chat_sessions[channel_id]["chat"].send_message, message)
         reply = response.text.strip()
 
         chat_sessions[channel_id]['last_active'] = time.time()
