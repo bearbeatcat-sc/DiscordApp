@@ -58,7 +58,14 @@ async def chat_command(interaction: discord.Interaction, *, message: str):
         reply = response.text.strip()
 
         chat_sessions[channel_id]['last_active'] = time.time()
-        await interaction.followup.send(reply)
+
+        formatted = (
+            f"👤 {interaction.user.mention} さんが言いました：\n"
+            f"＞ *{message}*\n\n"
+            f"🤖 {reply}"
+        )
+
+        await interaction.followup.send(formatted)
     except Exception as e:
         print(f"Error: {e}")
         await interaction.followup.send("エラーが発生しました。")
