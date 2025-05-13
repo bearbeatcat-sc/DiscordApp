@@ -56,7 +56,7 @@ async def chat_command(interaction: discord.Interaction, *, message: str):
         history = session["history"] + [
             {"role": "user", "parts": [message]}]
         
-        response = model.generate_content(message=history)
+        response = model.generate_content(contents=history)
         reply = response.text.strip()
 
         session["history"].append({"role": "user", "parts": [message]})
