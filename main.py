@@ -47,6 +47,9 @@ async def on_message(message: discord.Message):
 
     channel_id = str(message.channel.id)
     user_message = message.content
+    clean = message.clean_content.replace(bot.user.mention, "").strip()
+    user_tag = message.author.mention
+    user_text = f"{user_tag}: {clean}"
 
     if channel_id not in chat_sessions:
         chat_sessions[channel_id] = {
@@ -56,7 +59,7 @@ async def on_message(message: discord.Message):
 
     session = chat_sessions[channel_id]
 
-    session["history"].append({"role": "user", "parts": [user_message]})
+    session["history"].append({"role": "user", "parts": [user_text]})
     session["last_active"] = time.time()
     session["history"] = session["history"][-20:]
 
@@ -76,7 +79,7 @@ async def on_message(message: discord.Message):
             clean = message.clean_content.replace(bot.user.mention, "").strip()
 
             formatted = (
-            f"👤 {message.author.mention} さんが言いました：\n"
+            f"👤 {user_tag} さんが言いました：\n"
             f"＞ *{clean}*\n\n"
             f"🤖 {reply}")
 
@@ -89,6 +92,8 @@ async def on_message(message: discord.Message):
 async def chat_command(interaction: discord.Interaction, *, message: str):
     await interaction.response.defer(thinking=True)
     channel_id = str(interaction.channel.id)
+    user_tag = interaction.user.mention
+    user_text = f"{user_tag}: {message}"
 
     try:
         if channel_id not in chat_sessions:
@@ -99,7 +104,7 @@ async def chat_command(interaction: discord.Interaction, *, message: str):
         
         session = chat_sessions[channel_id]
         history = session["history"] + [
-            {"role": "user", "parts": [message]}]
+            {"role": "user", "parts": [user_text]}]
         
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(
