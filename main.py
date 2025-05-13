@@ -73,9 +73,11 @@ async def on_message(message: discord.Message):
             session["history"] = session["history"][-20:]
             session["last_active"] = time.time()
 
+            clean = message.clean_content.replace(bot.user.mention, "").strip()
+
             formatted = (
             f"👤 {message.author.mention} さんが言いました：\n"
-            f"＞ *{message}*\n\n"
+            f"＞ *{clean}*\n\n"
             f"🤖 {reply}")
 
             await message.channel.send(formatted)
