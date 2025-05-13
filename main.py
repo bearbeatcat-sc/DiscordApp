@@ -40,6 +40,51 @@ async def session_cleanup_loop():
         cleanup_inactive_sessions(timeout_seconds=3600)
         await asyncio.sleep(600)  # 10分ごとに実行
 
+@bot.event
+async def on_message(message: discord.Message):
+    if message.author == bot.user:
+        return
+
+    channel_id = str(message.channel.id)
+    user_message = message.content
+
+    if channel_id not in chat_sessions:
+        chat_sessions[channel_id] = {
+            "last_active": time.time(),
+            "history": []
+        }
+
+    session = chat_sessions[channel_id]
+
+    session["history"].append({"role": "user", "parts": [user_message]})
+    session["last_active"] = time.time()
+    session["history"] = session["history"][-20:]
+
+    if bot.user.mentioned_in(message):
+        try:
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: model.generate_content(contents=session["history"])
+            )
+            reply = response.text.strip()
+
+            session["history"].append({"role": "model", "parts": [reply]})
+            session["history"] = session["history"][-20:]
+            session["last_active"] = time.time()
+
+            clean = message.clean_content.replace(bot.user.mention, "").strip()
+
+            formatted = (
+            f"👤 {message.author.mention} さんが言いました：\n"
+            f"＞ *{clean}*\n\n"
+            f"🤖 {reply}")
+
+            await message.channel.send(formatted)
+        except Exception as e:
+            print(f"Error: {e}")
+            await message.channel.send("エラーが発生しました。")
+
 @bot.tree.command(name="chat", description="Geminiと会話します")
 async def chat_command(interaction: discord.Interaction, *, message: str):
     await interaction.response.defer(thinking=True)
@@ -56,14 +101,16 @@ async def chat_command(interaction: discord.Interaction, *, message: str):
         history = session["history"] + [
             {"role": "user", "parts": [message]}]
         
-        response = model.generate_content(contents=history)
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: model.generate_content(contents=history)
+        )
         reply = response.text.strip()
 
-        session["history"].append({"role": "user", "parts": [message]})
-        session["history"].append({"role": "model", "parts": [reply]})
+        session["history"] = history + [{"role": "model", "parts": [reply]}]
+        session["history"] = session["history"][-20:]
         session["last_active"] = time.time()
-        session["history"] = session["history"][-20:]  # 最大10ターン分（user+bot
-
 
         formatted = (
             f"👤 {interaction.user.mention} さんが言いました：\n"
