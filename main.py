@@ -15,7 +15,6 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # Gemini設定
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel(model_name="models/gemini-2.5-flash-preview-04-17")
-chat = model.start_chat()
 
 # Discord Bot設定
 intents = discord.Intents.default()
@@ -49,15 +48,22 @@ async def chat_command(interaction: discord.Interaction, *, message: str):
     try:
         if channel_id not in chat_sessions:
             chat_sessions[channel_id] = {
-                "chat": model.start_chat(),
-                "last_active": time.time()
+                "last_active": time.time(),
+                "history": []
             }
         
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(None, chat_sessions[channel_id]["chat"].send_message, message)
+        session = chat_sessions[channel_id]
+        history = session["history"] + [
+            {"role": "user", "parts": [message]}]
+        
+        response = model.generate_content(contents=history)
         reply = response.text.strip()
 
-        chat_sessions[channel_id]['last_active'] = time.time()
+        session["history"].append({"role": "user", "parts": [message]})
+        session["history"].append({"role": "model", "parts": [reply]})
+        session["last_active"] = time.time()
+        session["history"] = session["history"][-20:]  # 最大10ターン分（user+bot
+
 
         formatted = (
             f"👤 {interaction.user.mention} さんが言いました：\n"
