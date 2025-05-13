@@ -48,7 +48,8 @@ async def chat_command(interaction: discord.Interaction, *, message: str):
     try:
         if channel_id not in chat_sessions:
             chat_sessions[channel_id] = {
-                "last_active": time.time()
+                "last_active": time.time(),
+                "history": []
             }
         
         session = chat_sessions[channel_id]
