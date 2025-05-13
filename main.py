@@ -104,14 +104,13 @@ async def chat_command(interaction: discord.Interaction, *, message: str):
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(
             None,
-            lambda: model.generate_content(contents=session["history"])
+            lambda: model.generate_content(contents=history)
         )
         reply = response.text.strip()
 
-        session["history"].append({"role": "user", "parts": [message]})
-        session["history"].append({"role": "model", "parts": [reply]})
+        session["history"] = history + [{"role": "model", "parts": [reply]}]
+        session["history"] = session["history"][-20:]
         session["last_active"] = time.time()
-        session["history"] = session["history"][-20:]  # 最大10ターン分（user+bot
 
         formatted = (
             f"👤 {interaction.user.mention} さんが言いました：\n"
